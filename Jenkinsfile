@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "yourdockerhubusername/blog-app:latest"
+        IMAGE_NAME = "manishagawade/blog-app:latest"
         CONTAINER_NAME = "simple-blog"
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
     }
