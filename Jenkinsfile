@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "blog-app:latest"
+        DOCKER_IMAGE = "manishagawade/blog-app:latest"
         CONTAINER_NAME = "simple-blog"
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
     }
@@ -24,8 +24,28 @@ pipeline {
             steps {
                 sh '''
                 cd app
-                docker build -t blog-app:latest .
+                docker build -t $DOCKER_IMAGE .
                 '''
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Image to Docker Hub') {
+            steps {
+                sh 'docker push $DOCKER_IMAGE'
             }
         }
 
@@ -43,7 +63,7 @@ pipeline {
                   -p 5000:5000 \
                   -v $WORKSPACE/data:/app/data \
                   --name simple-blog \
-                  blog-app:latest
+                  $DOCKER_IMAGE
                 '''
             }
         }
@@ -57,10 +77,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Deployment successful! App is live on port 5000.'
+            echo 'Image pushed to Docker Hub & app deployed successfully!'
         }
         failure {
-            echo '❌ Deployment failed. Check logs.'
+            echo 'Pipeline failed. Check Jenkins logs.'
         }
     }
 }
