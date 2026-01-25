@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "manishagawade/blog-app:latest"
+        IMAGE_NAME = "yourdockerhubusername/blog-app:latest"
         CONTAINER_NAME = "simple-blog"
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
     }
@@ -24,12 +24,25 @@ pipeline {
             steps {
                 sh '''
                 cd app
-                docker build -t $DOCKER_IMAGE .
+                docker build -t $IMAGE_NAME .
                 '''
             }
         }
 
-        stage('Docker Login') {
+        stage('Trivy Image Scan (HIGH, CRITICAL)') {
+            steps {
+                sh '''
+                docker run --rm \
+                  -v /var/run/docker.sock:/var/run/docker.sock \
+                  aquasec/trivy:latest image \
+                  --severity HIGH,CRITICAL \
+                  --exit-code 1 \
+                  $IMAGE_NAME
+                '''
+            }
+        }
+
+        stage('Push Image to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
@@ -37,21 +50,16 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    docker push $IMAGE_NAME
                     '''
                 }
             }
         }
 
-        stage('Push Image to Docker Hub') {
-            steps {
-                sh 'docker push $DOCKER_IMAGE'
-            }
-        }
-
         stage('Stop Old Container') {
             steps {
-                sh 'docker rm -f simple-blog || true'
+                sh 'docker rm -f $CONTAINER_NAME || true'
             }
         }
 
@@ -62,25 +70,44 @@ pipeline {
                 docker run -d \
                   -p 5000:5000 \
                   -v $WORKSPACE/data:/app/data \
-                  --name simple-blog \
-                  $DOCKER_IMAGE
+                  --name $CONTAINER_NAME \
+                  $IMAGE_NAME
                 '''
             }
         }
 
-        stage('Verify Deployment') {
+        stage('OWASP ZAP Scan') {
             steps {
-                sh 'docker ps | grep simple-blog'
+                sh '''
+                docker run --rm \
+                  -v $(pwd):/zap/wrk/:rw \
+                  zaproxy/zap-stable \
+                  zap-baseline.py \
+                  -t http://localhost:5000 \
+                  -r zap-report.html
+                '''
             }
         }
     }
 
     post {
-        success {
-            echo 'Image pushed to Docker Hub & app deployed successfully!'
+        always {
+            publishHTML(target: [
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: '.',
+                reportFiles: 'zap-report.html',
+                reportName: 'OWASP ZAP Security Report'
+            ])
         }
+
+        success {
+            echo ' CI/CD Pipeline completed successfully'
+        }
+
         failure {
-            echo 'Pipeline failed. Check Jenkins logs.'
+            echo ' Pipeline failed (Check Trivy or ZAP results)'
         }
     }
 }
