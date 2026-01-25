@@ -29,7 +29,7 @@ pipeline {
             }
         }
 
-        stage('Trivy Image Scan (Report Only)') {
+        stage('Trivy Image Scan') {
             steps {
                 sh '''
                 docker run --rm \
@@ -79,12 +79,13 @@ pipeline {
         stage('OWASP ZAP Scan') {
             steps {
                 sh '''
-                docker run --rm \
-                  -v $(pwd):/zap/wrk/:rw \
-                  zaproxy/zap-stable \
-                  zap-baseline.py \
-                  -t http://localhost:5000 \
-                  -r zap-report.html
+                    docker run --rm --network host -u root \
+                    -v $(pwd):/zap/wrk/:rw \
+                    zaproxy/zap-stable \
+                    zap-baseline.py \
+                    -t http://192.168.80.25:5000 \
+                    -r zap-report.html
+
                 '''
             }
         }
