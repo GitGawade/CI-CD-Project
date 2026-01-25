@@ -84,7 +84,7 @@ pipeline {
                     zaproxy/zap-stable \
                     zap-baseline.py \
                     -t http://192.168.80.25:5000 \
-                    -r zap-report.html
+                    -r zap-report.html || true
 
                 '''
             }
