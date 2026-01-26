@@ -35,7 +35,7 @@ pipeline {
             }
         }
 
-        stage('SonarQube Quality Gate (Non Blocking)') {
+        stage('SonarQube Quality Gate') {
             steps {
                 script {
                     timeout(time: 2, unit: 'MINUTES') {
@@ -54,12 +54,12 @@ pipeline {
             }
         }
 
-        stage('Trivy Image Scan (Non Blocking)') {
+        stage('Trivy Image Scan') {
             steps {
                 sh '''
                 docker run --rm \
                   -v /var/run/docker.sock:/var/run/docker.sock \
-                  aquasec/trivy image --severity HIGH,CRITICAL $IMAGE_NAME || true
+                  aquasec/trivy image --severity HIGH,CRITICAL $IMAGE_NAME
                 '''
             }
         }
@@ -97,7 +97,7 @@ pipeline {
             }
         }
 
-        stage('OWASP ZAP Scan (Non Blocking)') {
+        stage('OWASP ZAP Scan') {
             steps {
                 sh '''
                 docker run --rm --network host -u root \
@@ -105,7 +105,7 @@ pipeline {
                   zaproxy/zap-stable \
                   zap-baseline.py \
                   -t http://localhost:5000 \
-                  -r zap-report.html || true
+                  -r zap-report.html
                 '''
             }
         }
