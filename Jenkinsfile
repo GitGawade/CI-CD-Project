@@ -79,15 +79,13 @@ pipeline {
             }
         }
 
-        stage('Stop Old Container') {
-            steps {
-                sh 'docker rm -f $CONTAINER_NAME || true'
-            }
-        }
+    
 
         stage('Run New Container with Volume') {
             steps {
                 sh '''
+                docker rm -f $CONTAINER_NAME || true
+                sleep 7
                 mkdir -p $WORKSPACE/data
                 docker run -d -p 5000:5000 \
                   -v $WORKSPACE/data:/app/data \
