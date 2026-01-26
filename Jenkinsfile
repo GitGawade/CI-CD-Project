@@ -7,6 +7,10 @@ pipeline {
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
     }
 
+    tools {
+        sonarQubeScanner 'SonarQubeScanner'
+    }
+
     stages {
 
         stage('Clone Repository') {
@@ -16,6 +20,31 @@ pipeline {
                     rm -rf app
                     git clone https://${GITHUB_TOKEN}@github.com/GitGawade/CI-CD-Project.git app
                     '''
+                }
+            }
+        }
+
+        🔍 stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                    cd app
+                    sonar-scanner \
+                      -Dsonar.projectKey=blog-app \
+                      -Dsonar.projectName=blog-app \
+                      -Dsonar.sources=.
+                    ''' 
+                }
+            }
+        }
+
+        🟢 stage('SonarQube Quality Gate (Non Blocking)') {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    script {
+                        def qg = waitForQualityGate abortPipeline: false
+                        echo "SonarQube Quality Gate Status: ${qg.status}"
+                    }
                 }
             }
         }
@@ -40,7 +69,6 @@ pipeline {
                 '''
             }
         }
-
 
         stage('Push Image to Docker Hub') {
             steps {
@@ -79,13 +107,12 @@ pipeline {
         stage('OWASP ZAP Scan') {
             steps {
                 sh '''
-                    docker run --rm --network host -u root \
-                    -v $(pwd):/zap/wrk/:rw \
-                    zaproxy/zap-stable \
-                    zap-baseline.py \
-                    -t http://192.168.80.25:5000 \
-                    -r zap-report.html || true
-
+                docker run --rm --network host -u root \
+                  -v $(pwd):/zap/wrk/:rw \
+                  zaproxy/zap-stable \
+                  zap-baseline.py \
+                  -t http://192.168.80.25:5000 \
+                  -r zap-report.html || true
                 '''
             }
         }
@@ -108,7 +135,7 @@ pipeline {
         }
 
         failure {
-            echo ' Pipeline failed (Check Trivy or ZAP results)'
+            echo ' Pipeline failed due to build/deploy issue (not security scans)'
         }
     }
 }
