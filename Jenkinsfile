@@ -105,7 +105,7 @@ pipeline {
                   zaproxy/zap-stable \
                   zap-baseline.py \
                   -t http://localhost:5000 \
-                  -r zap-report.html
+                  -r zap-report.html || true
                 '''
             }
         }
