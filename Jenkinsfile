@@ -1,14 +1,11 @@
 pipeline {
     agent any
 
-    tools {
-        sonarRunner 'sonar'
-    }
-
     environment {
         IMAGE_NAME = "manishagawade/blog-app:latest"
         CONTAINER_NAME = "simple-blog"
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
+        SCANNER_HOME = tool 'sonar'   // Name of SonarQube Scanner in Jenkins tools
     }
 
     stages {
@@ -26,14 +23,14 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonar') {
-                    sh '''
+                withSonarQubeEnv('sonar') {   // SonarQube server name
+                    sh """
                     cd app
-                    sonar-scanner \
+                    ${SCANNER_HOME}/bin/sonar-scanner \
                       -Dsonar.projectKey=blog-app \
                       -Dsonar.projectName=blog-app \
                       -Dsonar.sources=.
-                    '''
+                    """
                 }
             }
         }
@@ -62,9 +59,7 @@ pipeline {
                 sh '''
                 docker run --rm \
                   -v /var/run/docker.sock:/var/run/docker.sock \
-                  aquasec/trivy:latest image \
-                  --severity HIGH,CRITICAL \
-                  $IMAGE_NAME || true
+                  aquasec/trivy image --severity HIGH,CRITICAL $IMAGE_NAME || true
                 '''
             }
         }
@@ -94,8 +89,7 @@ pipeline {
             steps {
                 sh '''
                 mkdir -p $WORKSPACE/data
-                docker run -d \
-                  -p 5000:5000 \
+                docker run -d -p 5000:5000 \
                   -v $WORKSPACE/data:/app/data \
                   --name $CONTAINER_NAME \
                   $IMAGE_NAME
@@ -110,7 +104,7 @@ pipeline {
                   -v $(pwd):/zap/wrk/:rw \
                   zaproxy/zap-stable \
                   zap-baseline.py \
-                  -t http://192.168.80.25:5000 \
+                  -t http://localhost:5000 \
                   -r zap-report.html || true
                 '''
             }
@@ -119,20 +113,11 @@ pipeline {
 
     post {
         always {
-            publishHTML(target: [
-                allowMissing: true,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: '.',
-                reportFiles: 'zap-report.html',
-                reportName: 'OWASP ZAP Security Report'
-            ])
+            echo 'Pipeline finished'
         }
-
         success {
-            echo 'Pipeline completed successfully'
+            echo 'Build, scan, and deployment completed'
         }
-
         failure {
             echo 'Pipeline failed due to build/deploy issue (NOT security scans)'
         }
