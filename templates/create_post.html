@@ -3,7 +3,7 @@
 
 <h2>Create Post</h2>
 <form method="post">
-    {{ csrf_token() }}
+    <!-- {{ csrf_token() }} -->
     <input type="text" name="title" placeholder="Post Title" required>
     <textarea name="content" rows="6" placeholder="Write your post..." required></textarea>
     <button type="submit">Publish</button>
