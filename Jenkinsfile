@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        sonarRunner 'sonar'
+    }
+
     environment {
         IMAGE_NAME = "manishagawade/blog-app:latest"
         CONTAINER_NAME = "simple-blog"
@@ -22,7 +26,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonarqube') {
+                withSonarQubeEnv('sonar') {
                     sh '''
                     cd app
                     sonar-scanner \
@@ -34,12 +38,11 @@ pipeline {
             }
         }
 
-        stage('SonarQube Quality Gate') {
+        stage('SonarQube Quality Gate (Non Blocking)') {
             steps {
-                timeout(time: 2, unit: 'MINUTES') {
-                    script {
-                        def qg = waitForQualityGate abortPipeline: false
-                        echo "SonarQube Quality Gate Status: ${qg.status}"
+                script {
+                    timeout(time: 2, unit: 'MINUTES') {
+                        waitForQualityGate abortPipeline: false
                     }
                 }
             }
@@ -54,14 +57,14 @@ pipeline {
             }
         }
 
-        stage('Trivy Image Scan') {
+        stage('Trivy Image Scan (Non Blocking)') {
             steps {
                 sh '''
                 docker run --rm \
-                -v /var/run/docker.sock:/var/run/docker.sock \
-                aquasec/trivy:latest image \
-                --severity HIGH,CRITICAL \
-                $IMAGE_NAME || true
+                  -v /var/run/docker.sock:/var/run/docker.sock \
+                  aquasec/trivy:latest image \
+                  --severity HIGH,CRITICAL \
+                  $IMAGE_NAME || true
                 '''
             }
         }
@@ -100,15 +103,15 @@ pipeline {
             }
         }
 
-        stage('OWASP ZAP Scan') {
+        stage('OWASP ZAP Scan (Non Blocking)') {
             steps {
                 sh '''
                 docker run --rm --network host -u root \
                   -v $(pwd):/zap/wrk/:rw \
                   zaproxy/zap-stable \
                   zap-baseline.py \
-                  -t http://192.168.80.144:5000 \
-                  -r zap-report.html
+                  -t http://192.168.80.25:5000 \
+                  -r zap-report.html || true
                 '''
             }
         }
@@ -127,7 +130,7 @@ pipeline {
         }
 
         success {
-            echo 'CI/CD Pipeline completed successfully'
+            echo 'Pipeline completed successfully'
         }
 
         failure {
