@@ -7,10 +7,6 @@ pipeline {
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
     }
 
-    tools {
-        sonarQubeScanner 'SonarQubeScanner'
-    }
-
     stages {
 
         stage('Clone Repository') {
@@ -24,7 +20,7 @@ pipeline {
             }
         }
 
-        🔍 stage('SonarQube Analysis') {
+        stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
@@ -33,12 +29,12 @@ pipeline {
                       -Dsonar.projectKey=blog-app \
                       -Dsonar.projectName=blog-app \
                       -Dsonar.sources=.
-                    ''' 
+                    '''
                 }
             }
         }
 
-        🟢 stage('SonarQube Quality Gate (Non Blocking)') {
+        stage('SonarQube Quality Gate') {
             steps {
                 timeout(time: 2, unit: 'MINUTES') {
                     script {
@@ -111,8 +107,8 @@ pipeline {
                   -v $(pwd):/zap/wrk/:rw \
                   zaproxy/zap-stable \
                   zap-baseline.py \
-                  -t http://192.168.80.25:5000 \
-                  -r zap-report.html || true
+                  -t http://192.168.80.144:5000 \
+                  -r zap-report.html
                 '''
             }
         }
@@ -121,7 +117,7 @@ pipeline {
     post {
         always {
             publishHTML(target: [
-                allowMissing: false,
+                allowMissing: true,
                 alwaysLinkToLastBuild: true,
                 keepAll: true,
                 reportDir: '.',
@@ -131,11 +127,11 @@ pipeline {
         }
 
         success {
-            echo ' CI/CD Pipeline completed successfully'
+            echo 'CI/CD Pipeline completed successfully'
         }
 
         failure {
-            echo ' Pipeline failed due to build/deploy issue (not security scans)'
+            echo 'Pipeline failed due to build/deploy issue (NOT security scans)'
         }
     }
 }
