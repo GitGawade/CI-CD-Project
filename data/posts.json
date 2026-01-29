@@ -1,7 +1,7 @@
 [
   {
-    "author": "saurabh",
-    "title": "project1",
-    "content": "jenkins"
+    "author": "manisha",
+    "title": "Secured & Monitored CI/CD Pipeline for Automated Container Deployment",
+    "content": "This project implements a fully automated CI/CD pipeline designed to bridge the gap between development and production. By leveraging Jenkins, Docker, and GitHub, the system ensures that any code change pushed by a developer is automatically tested, built into a container image, and deployed to a live environment without manual intervention. website maintaining a rigorous security posture through deep operational visibility via the Prometheus-Grafana."
   }
 ]
