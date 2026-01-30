@@ -12,7 +12,7 @@ pipeline {
 
         stage('Clone Repository') {
             steps {
-                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                withCredentials([string(credentialsId: 'dockerhub', variable: 'GITHUB_TOKEN')]) {
                     sh '''
                     rm -rf app
                     git clone https://${GITHUB_TOKEN}@github.com/GitGawade/CI-CD-Project.git app
