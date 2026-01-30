@@ -1,41 +1,45 @@
 pipeline {
-    // Run all stages on the docker-agent
     agent { label 'docker-agent' }
 
     environment {
-        IMAGE_NAME = sanjana038/blog-app"
-        IMAGE_TAG = "latest"
+        IMAGE_NAME = "manishagawade/blog-app"
+        IMAGE_TAG  = "latest"
         SONAR_HOME = tool "sonar"
+        GIT_REPO   = "https://github.com/GitGawade/CI-CD-Project.git"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/GitGawade/CI-CD-Project.git'
+                git branch: 'main', url: "${GIT_REPO}"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("sonar") {
-                    sh """
-                      $SONAR_HOME/bin/sonar-scanner \
-                      -Dsonar.projectName=flask_blog \
-                      -Dsonar.projectKey=flask_blog
-                    """
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                          ${SONAR_HOME}/bin/sonar-scanner \
+                          -Dsonar.projectKey=blog-app \
+                          -Dsonar.projectName=blog-app \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=$SONAR_TOKEN
+                        """
+                    }
                 }
             }
         }
 
         stage('SonarQube Quality Gate') {
-    steps {
-        sleep 5 // Give SonarQube a moment to process
-        timeout(time: 5, unit: 'MINUTES') {
-            waitForQualityGate abortPipeline: true
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
         }
-    }
-}
 
         stage('Trivy FS Scan (Source Code)') {
             steps {
@@ -48,7 +52,7 @@ pipeline {
             }
         }
 
-        stage('Build Image') {
+        stage('Build Docker Image') {
             steps {
                 sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
@@ -65,28 +69,42 @@ pipeline {
             }
         }
 
-        stage('Push Image') {
+        stage('Push Image to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
+                    credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                       docker push $IMAGE_NAME:$IMAGE_TAG
                     '''
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Container') {
             steps {
                 sh '''
-                  docker compose pull
-                  docker compose up -d --force-recreate
+                  docker rm -f blog-container || true
+                  docker run -d -p 5000:5000 \
+                    --name blog-container \
+                    $IMAGE_NAME:$IMAGE_TAG
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished'
+        }
+        success {
+            echo 'Build, scan, push, and deployment completed successfully'
+        }
+        failure {
+            echo 'Pipeline failed. Check logs above.'
         }
     }
 }
