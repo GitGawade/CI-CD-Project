@@ -2,11 +2,14 @@ pipeline {
     agent { label 'docker-agent' }
 
     environment {
-        IMAGE_NAME = "manishagawade/blog-app"
-        IMAGE_TAG  = "latest"
-        SONAR_HOME = tool "sonar"
-        GIT_REPO   = "https://github.com/GitGawade/CI-CD-Project.git"
-        CONTAINER_NAME = "blog-container"
+        IMAGE_NAME      = "manishagawade/blog-app"
+        IMAGE_TAG       = "latest"
+        GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
+        CONTAINER_NAME  = "blog-container"
+    }
+
+    tools {
+        sonar 'sonar'  // Must match the name in Jenkins Global Tool Configuration
     }
 
     stages {
@@ -19,10 +22,10 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("sonar") {
+                withSonarQubeEnv('sonar') {
                     withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                         sh '''
-                          ${SONAR_HOME}/bin/sonar-scanner \
+                          sonar-scanner \
                           -Dsonar.projectKey=blog-app \
                           -Dsonar.projectName=blog-app \
                           -Dsonar.sources=. \
@@ -45,10 +48,7 @@ pipeline {
         stage('Trivy Scan (Source Code)') {
             steps {
                 sh '''
-                  trivy fs \
-                  --exit-code 1 \
-                  --severity HIGH,CRITICAL \
-                  .
+                  trivy fs --exit-code 1 --severity HIGH,CRITICAL .
                 '''
             }
         }
@@ -62,10 +62,7 @@ pipeline {
         stage('Trivy Image Scan') {
             steps {
                 sh '''
-                  trivy image \
-                  --exit-code 0 \
-                  --severity HIGH,CRITICAL \
-                  $IMAGE_NAME:$IMAGE_TAG
+                  trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG
                 '''
             }
         }
@@ -89,9 +86,7 @@ pipeline {
             steps {
                 sh '''
                   docker rm -f $CONTAINER_NAME || true
-                  docker run -d -p 5000:5000 \
-                    --name $CONTAINER_NAME \
-                    $IMAGE_NAME:$IMAGE_TAG
+                  docker run -d -p 5000:5000 --name $CONTAINER_NAME $IMAGE_NAME:$IMAGE_TAG
                 '''
             }
         }
