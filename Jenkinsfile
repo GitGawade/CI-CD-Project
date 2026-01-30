@@ -1,30 +1,31 @@
 pipeline {
-    agent {label'docker-agent'}
+    agent { label 'docker-agent' }
 
     environment {
         IMAGE_NAME = "manishagawade/blog-app:latest"
         CONTAINER_NAME = "simple-blog"
         GITHUB_REPO = "https://github.com/GitGawade/CI-CD-Project.git"
-        SCANNER_HOME = tool 'sonar'   // Name of SonarQube Scanner in Jenkins tools
+        SCANNER_HOME = tool 'sonar'
     }
 
-     stages {
+    stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/GitGawade/CI-CD-Project.git'
+                git branch: 'main', url: "${GITHUB_REPO}"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonar') {   // SonarQube server name
+                withSonarQubeEnv('sonar') {
                     sh """
-                   
                     ${SCANNER_HOME}/bin/sonar-scanner \
                       -Dsonar.projectKey=blog-app \
                       -Dsonar.projectName=blog-app \
-                      -Dsonar.sources=.
+                      -Dsonar.sources=. \
+                      -Dsonar.host.url=$SONAR_HOST_URL \
+                      -Dsonar.login=$SONAR_AUTH_TOKEN
                     """
                 }
             }
@@ -43,7 +44,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                cd app
                 docker build -t $IMAGE_NAME .
                 '''
             }
@@ -74,13 +74,10 @@ pipeline {
             }
         }
 
-    
-
         stage('Run New Container with Volume') {
             steps {
                 sh '''
                 docker rm -f $CONTAINER_NAME || true
-                sleep 7
                 mkdir -p $WORKSPACE/data
                 docker run -d -p 5000:5000 \
                   -v $WORKSPACE/data:/app/data \
