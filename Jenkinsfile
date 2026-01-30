@@ -11,11 +11,10 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage("Clone Code from GitHub") {
             steps {
-                echo "Cloning repository..."
-                // Use credentialsId if repo is private
-                git branch: 'main', url: "${GIT_REPO}"
+                sh 'rm -rf *'
+                git url: "https://github.com/better-call-saurabh/project-k8s.git", branch: "main"
             }
         }
 
