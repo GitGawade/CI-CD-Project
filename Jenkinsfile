@@ -8,20 +8,18 @@ pipeline {
         CONTAINER_NAME  = "blog-container"
     }
 
-    tools {
-        sonar 'sonar'  // Must match the name in Jenkins Global Tool Configuration
-    }
-
     stages {
 
         stage('Checkout') {
             steps {
+                echo "Cloning repository..."
                 git branch: 'main', url: "${GIT_REPO}"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
+                echo "Running SonarQube analysis..."
                 withSonarQubeEnv('sonar') {
                     withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                         sh '''
@@ -39,6 +37,7 @@ pipeline {
 
         stage('SonarQube Quality Gate') {
             steps {
+                echo "Checking SonarQube Quality Gate..."
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -47,6 +46,7 @@ pipeline {
 
         stage('Trivy Scan (Source Code)') {
             steps {
+                echo "Scanning source code with Trivy..."
                 sh '''
                   trivy fs --exit-code 1 --severity HIGH,CRITICAL .
                 '''
@@ -55,52 +55,14 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+                echo "Building Docker image..."
                 sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
         stage('Trivy Image Scan') {
             steps {
+                echo "Scanning Docker image with Trivy..."
                 sh '''
                   trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG
                 '''
-            }
-        }
-
-        stage('Push Image to Docker Hub') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                      docker push $IMAGE_NAME:$IMAGE_TAG
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy Container') {
-            steps {
-                sh '''
-                  docker rm -f $CONTAINER_NAME || true
-                  docker run -d -p 5000:5000 --name $CONTAINER_NAME $IMAGE_NAME:$IMAGE_TAG
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            echo 'Pipeline finished'
-        }
-        success {
-            echo 'Build, scan, push, and deployment completed successfully'
-        }
-        failure {
-            echo 'Pipeline failed. Check logs above.'
-        }
-    }
-}
