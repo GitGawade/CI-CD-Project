@@ -5,7 +5,8 @@ pipeline {
         IMAGE_NAME      = "manishagawade/flask-blog"
         IMAGE_TAG       = "latest"
         GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
-        SONAR_HOST      = "http://13.127.66.96:9000"  // your SonarQube server
+        SONAR_HOST      = "http://13.127.66.96:9000"  // Your SonarQube server
+        CONTAINER_NAME  = "flask-blog"
     }
 
     stages {
@@ -13,21 +14,22 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo "Cloning repository..."
+                // Use credentialsId if repo is private
                 git branch: 'main', url: "${GIT_REPO}"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Running SonarQube analysis using Docker..."
+                echo "Running SonarQube analysis..."
                 withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                     script {
-                        docker.image('sonarsource/sonar-scanner-cli:latest').inside {
+                        docker.image('sonarsource/sonar-scanner-cli:latest').inside("-v ${pwd()}:/usr/src") {
                             sh """
                               sonar-scanner \
                               -Dsonar.projectKey=flask_blog \
                               -Dsonar.projectName=flask_blog \
-                              -Dsonar.sources=. \
+                              -Dsonar.sources=/usr/src \
                               -Dsonar.host.url=$SONAR_HOST \
                               -Dsonar.login=$SONAR_TOKEN
                             """
@@ -50,8 +52,8 @@ pipeline {
             steps {
                 echo "Scanning source code with Trivy..."
                 script {
-                    docker.image('aquasec/trivy:latest').inside {
-                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
+                    docker.image('aquasec/trivy:latest').inside("-v ${pwd()}:/usr/src") {
+                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL /usr/src'
                     }
                 }
             }
@@ -60,6 +62,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
+                // Docker runs on host, ensure container has access to docker.sock
                 sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
@@ -91,8 +94,8 @@ pipeline {
             steps {
                 echo "Deploying container..."
                 sh """
-                  docker rm -f flask-blog || true
-                  docker run -d -p 5000:5000 --name flask-blog $IMAGE_NAME:$IMAGE_TAG
+                  docker rm -f $CONTAINER_NAME || true
+                  docker run -d -p 5000:5000 --name $CONTAINER_NAME $IMAGE_NAME:$IMAGE_TAG
                 """
             }
         }
