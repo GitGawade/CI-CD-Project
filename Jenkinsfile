@@ -20,7 +20,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonar') {   // SonarQube server name
                     sh """
-                    cd app.py
+                   
                     ${SCANNER_HOME}/bin/sonar-scanner \
                       -Dsonar.projectKey=blog-app \
                       -Dsonar.projectName=blog-app \
