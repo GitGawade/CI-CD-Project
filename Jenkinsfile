@@ -19,7 +19,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv("sonar") {
-                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                         sh """
                           ${SONAR_HOME}/bin/sonar-scanner \
                           -Dsonar.projectKey=blog-app \
