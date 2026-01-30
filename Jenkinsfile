@@ -8,16 +8,11 @@ pipeline {
         SCANNER_HOME = tool 'sonar'   // Name of SonarQube Scanner in Jenkins tools
     }
 
-    stages {
+     stages {
 
-        stage('Clone Repository') {
+        stage('Checkout') {
             steps {
-                withCredentials([string(credentialsId: 'dockerhub', variable: 'GITHUB_TOKEN')]) {
-                    sh '''
-                    rm -rf app
-                    git clone https://${GITHUB_TOKEN}@github.com/GitGawade/CI-CD-Project.git app
-                    '''
-                }
+                git branch: 'main', url: 'https://github.com/GitGawade/CI-CD-Project.git'
             }
         }
 
