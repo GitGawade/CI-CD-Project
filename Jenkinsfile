@@ -9,7 +9,14 @@ pipeline {
     }
 
     stages {
+        stage('Debug Workspace') {
+            steps {
+        sh 'pwd'
+        sh 'ls -la'
+          }
+       }
 
+    
         stage('Checkout') {
             steps {
                 echo "Cloning repository..."
