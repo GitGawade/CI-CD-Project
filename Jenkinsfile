@@ -1,11 +1,11 @@
 pipeline {
-    // Run all stages on the docker-agent
     agent { label 'docker-agent' }
 
     environment {
-        IMAGE_NAME = "manishagawade/flask-blog"
-        IMAGE_TAG  = "latest"
-        GIT_REPO   = "https://github.com/GitGawade/CI-CD-Project.git"
+        IMAGE_NAME      = "manishagawade/flask-blog"
+        IMAGE_TAG       = "latest"
+        GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
+        SONAR_HOST      = "http://13.127.66.96:9000"  // replace with your SonarQube server
     }
 
     stages {
@@ -19,19 +19,18 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Running SonarQube analysis..."
-                // Use the SonarQube credentials ID 'sonar' created for Manisha
-                withSonarQubeEnv('sonar') {
-                    withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
-                        sh '''
-                          sonar-scanner \
-                          -Dsonar.projectName=flask_blog \
-                          -Dsonar.projectKey=flask_blog \
-                          -Dsonar.sources=. \
-                          -Dsonar.host.url=$SONAR_HOST_URL \
-                          -Dsonar.login=$SONAR_TOKEN
-                        '''
-                    }
+                echo "Running SonarQube analysis using Docker..."
+                withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                      docker run --rm \
+                        -v \$(pwd):/usr/src \
+                        -e SONAR_HOST_URL=${SONAR_HOST} \
+                        -e SONAR_LOGIN=${SONAR_TOKEN} \
+                        sonarsource/sonar-scanner-cli \
+                        -Dsonar.projectKey=flask_blog \
+                        -Dsonar.projectName=flask_blog \
+                        -Dsonar.sources=/usr/src
+                    """
                 }
             }
         }
@@ -48,9 +47,9 @@ pipeline {
         stage('Trivy FS Scan (Source Code)') {
             steps {
                 echo "Scanning source code with Trivy..."
-                sh '''
-                  trivy fs --exit-code 1 --severity HIGH,CRITICAL .
-                '''
+                sh """
+                  docker run --rm -v \$(pwd):/project aquasec/trivy:latest fs --exit-code 1 --severity HIGH,CRITICAL /project
+                """
             }
         }
 
@@ -64,36 +63,35 @@ pipeline {
         stage('Trivy Image Scan') {
             steps {
                 echo "Scanning Docker image with Trivy..."
-                sh '''
-                  trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG
-                '''
+                sh """
+                  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG
+                """
             }
         }
 
         stage('Push Docker Image') {
             steps {
                 echo "Pushing Docker image to Docker Hub..."
-                // Use the Docker Hub credentials ID 'dockerhub' for Manisha
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh '''
+                    sh """
                       echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                       docker push $IMAGE_NAME:$IMAGE_TAG
-                    '''
+                    """
                 }
             }
         }
 
         stage('Deploy Container') {
             steps {
-                echo "Deploying container using Docker Compose..."
-                sh '''
-                  docker compose pull
-                  docker compose up -d --force-recreate
-                '''
+                echo "Deploying container..."
+                sh """
+                  docker rm -f flask-blog || true
+                  docker run -d -p 5000:5000 --name flask-blog $IMAGE_NAME:$IMAGE_TAG
+                """
             }
         }
     }
