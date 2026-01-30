@@ -2,11 +2,11 @@ pipeline {
     agent { label 'docker-agent' }
 
     environment {
-        IMAGE_NAME      = "manishagawade/flask-blog"
+        IMAGE_NAME      = "manishagawade/blog-app"
         IMAGE_TAG       = "latest"
         GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
         SONAR_HOST      = "http://13.127.66.96:9000"  // Your SonarQube server
-        CONTAINER_NAME  = "flask-blog"
+        CONTAINER_NAME  = "blog-app"
     }
 
     stages {
