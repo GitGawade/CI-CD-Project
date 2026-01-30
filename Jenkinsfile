@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME      = "manishagawade/flask-blog"
         IMAGE_TAG       = "latest"
         GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
-        SONAR_HOST      = "http://13.127.66.96:9000"  // replace with your SonarQube server
+        SONAR_HOST      = "http://13.127.66.96:9000"  // your SonarQube server
     }
 
     stages {
@@ -21,16 +21,18 @@ pipeline {
             steps {
                 echo "Running SonarQube analysis using Docker..."
                 withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
-                    sh """
-                      docker run --rm \
-                        -v \$(pwd):/usr/src \
-                        -e SONAR_HOST_URL=${SONAR_HOST} \
-                        -e SONAR_LOGIN=${SONAR_TOKEN} \
-                        sonarsource/sonar-scanner-cli \
-                        -Dsonar.projectKey=flask_blog \
-                        -Dsonar.projectName=flask_blog \
-                        -Dsonar.sources=/usr/src
-                    """
+                    script {
+                        docker.image('sonarsource/sonar-scanner-cli:latest').inside {
+                            sh """
+                              sonar-scanner \
+                              -Dsonar.projectKey=flask_blog \
+                              -Dsonar.projectName=flask_blog \
+                              -Dsonar.sources=. \
+                              -Dsonar.host.url=$SONAR_HOST \
+                              -Dsonar.login=$SONAR_TOKEN
+                            """
+                        }
+                    }
                 }
             }
         }
@@ -47,9 +49,11 @@ pipeline {
         stage('Trivy FS Scan (Source Code)') {
             steps {
                 echo "Scanning source code with Trivy..."
-                sh """
-                  docker run --rm -v \$(pwd):/project aquasec/trivy:latest fs --exit-code 1 --severity HIGH,CRITICAL /project
-                """
+                script {
+                    docker.image('aquasec/trivy:latest').inside {
+                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
+                    }
+                }
             }
         }
 
@@ -63,9 +67,7 @@ pipeline {
         stage('Trivy Image Scan') {
             steps {
                 echo "Scanning Docker image with Trivy..."
-                sh """
-                  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG
-                """
+                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG'
             }
         }
 
