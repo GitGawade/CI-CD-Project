@@ -13,7 +13,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo "Cloning repository..."
-                git branch: 'main', url: "${GIT_REPO}"
+                checkout scm
             }
         }
 
