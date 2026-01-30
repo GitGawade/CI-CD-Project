@@ -42,7 +42,7 @@ pipeline {
             }
         }
 
-        stage('Trivy FS Scan (Source Code)') {
+        stage('Trivy Scan (Source Code)') {
             steps {
                 sh '''
                   trivy fs \
