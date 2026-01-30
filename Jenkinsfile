@@ -4,31 +4,33 @@ pipeline {
     environment {
         IMAGE_NAME      = "manishagawade/blog-app"
         IMAGE_TAG       = "latest"
-        GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
-        SONAR_HOST      = "http://13.127.66.96:9000"  // Your SonarQube server
         CONTAINER_NAME  = "blog-app"
+        GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
+        SONAR_HOST      = "http://13.127.66.96:9000"  // SonarQube server
     }
 
     stages {
 
-        stage("Clone Code from GitHub") {
+        stage('Checkout') {
             steps {
-                sh 'rm -rf *'
-                git url: "https://github.com/GitGawade/CI-CD-Project.git", branch: "main"
+                echo "Cloning repository..."
+                // Ensure Git is installed on Jenkins agent
+                sh 'git --version || apt update && apt install -y git'
+                git branch: 'main', url: "${GIT_REPO}"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Running SonarQube analysis..."
+                echo "Running SonarQube analysis using Docker..."
                 withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                     script {
-                        docker.image('sonarsource/sonar-scanner-cli:latest').inside("-v ${pwd()}:/usr/src") {
+                        docker.image('sonarsource/sonar-scanner-cli:latest').inside {
                             sh """
                               sonar-scanner \
-                              -Dsonar.projectKey=flask_blog \
-                              -Dsonar.projectName=flask_blog \
-                              -Dsonar.sources=/usr/src \
+                              -Dsonar.projectKey=blog-app \
+                              -Dsonar.projectName=blog-app \
+                              -Dsonar.sources=. \
                               -Dsonar.host.url=$SONAR_HOST \
                               -Dsonar.login=$SONAR_TOKEN
                             """
@@ -51,8 +53,8 @@ pipeline {
             steps {
                 echo "Scanning source code with Trivy..."
                 script {
-                    docker.image('aquasec/trivy:latest').inside("-v ${pwd()}:/usr/src") {
-                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL /usr/src'
+                    docker.image('aquasec/trivy:latest').inside {
+                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
                     }
                 }
             }
@@ -61,7 +63,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
-                // Docker runs on host, ensure container has access to docker.sock
                 sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
