@@ -1,11 +1,11 @@
 pipeline {
+    // Run all stages on the docker-agent
     agent { label 'docker-agent' }
 
     environment {
-        IMAGE_NAME      = "manishagawade/blog-app"
-        IMAGE_TAG       = "latest"
-        GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
-        CONTAINER_NAME  = "blog-container"
+        IMAGE_NAME = "manishagawade/flask-blog"
+        IMAGE_TAG  = "latest"
+        GIT_REPO   = "https://github.com/GitGawade/CI-CD-Project.git"
     }
 
     stages {
@@ -20,12 +20,13 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 echo "Running SonarQube analysis..."
+                // Use the SonarQube credentials ID 'sonar' created for Manisha
                 withSonarQubeEnv('sonar') {
                     withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                         sh '''
                           sonar-scanner \
-                          -Dsonar.projectKey=blog-app \
-                          -Dsonar.projectName=blog-app \
+                          -Dsonar.projectName=flask_blog \
+                          -Dsonar.projectKey=flask_blog \
                           -Dsonar.sources=. \
                           -Dsonar.host.url=$SONAR_HOST_URL \
                           -Dsonar.login=$SONAR_TOKEN
@@ -44,7 +45,7 @@ pipeline {
             }
         }
 
-        stage('Trivy Scan (Source Code)') {
+        stage('Trivy FS Scan (Source Code)') {
             steps {
                 echo "Scanning source code with Trivy..."
                 sh '''
@@ -66,3 +67,46 @@ pipeline {
                 sh '''
                   trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG
                 '''
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "Pushing Docker image to Docker Hub..."
+                // Use the Docker Hub credentials ID 'dockerhub' for Manisha
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                      docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                echo "Deploying container using Docker Compose..."
+                sh '''
+                  docker compose pull
+                  docker compose up -d --force-recreate
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished'
+        }
+        success {
+            echo 'Build, scan, push, and deployment completed successfully'
+        }
+        failure {
+            echo 'Pipeline failed. Check logs above.'
+        }
+    }
+}
