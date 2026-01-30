@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'docker-agent' }
+    //agent { label 'docker-agent' }
 
     environment {
         IMAGE_NAME      = "manishagawade/blog-app"
