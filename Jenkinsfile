@@ -6,6 +6,7 @@ pipeline {
         IMAGE_TAG  = "latest"
         SONAR_HOME = tool "sonar"
         GIT_REPO   = "https://github.com/GitGawade/CI-CD-Project.git"
+        CONTAINER_NAME = "blog-container"
     }
 
     stages {
@@ -20,14 +21,14 @@ pipeline {
             steps {
                 withSonarQubeEnv("sonar") {
                     withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
-                        sh """
+                        sh '''
                           ${SONAR_HOME}/bin/sonar-scanner \
                           -Dsonar.projectKey=blog-app \
                           -Dsonar.projectName=blog-app \
                           -Dsonar.sources=. \
                           -Dsonar.host.url=$SONAR_HOST_URL \
                           -Dsonar.login=$SONAR_TOKEN
-                        """
+                        '''
                     }
                 }
             }
@@ -87,9 +88,9 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 sh '''
-                  docker rm -f blog-container || true
+                  docker rm -f $CONTAINER_NAME || true
                   docker run -d -p 5000:5000 \
-                    --name blog-container \
+                    --name $CONTAINER_NAME \
                     $IMAGE_NAME:$IMAGE_TAG
                 '''
             }
