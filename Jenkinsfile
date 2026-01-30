@@ -14,7 +14,7 @@ pipeline {
         stage("Clone Code from GitHub") {
             steps {
                 sh 'rm -rf *'
-                git url: "https://github.com/better-call-saurabh/project-k8s.git", branch: "main"
+                git url: "https://github.com/GitGawade/CI-CD-Project.git", branch: "main"
             }
         }
 
