@@ -34,8 +34,8 @@ pipeline {
                                 -w /usr/src \
                                 sonarsource/sonar-scanner-cli:latest \
                                 sonar-scanner \
-                                -Dsonar.projectKey=flask_blog \
-                                -Dsonar.projectName=flask_blog \
+                                -Dsonar.projectKey=blog-app \
+                                -Dsonar.projectName=blog-app \
                                 -Dsonar.sources=. \
                                 -Dsonar.host.url=${SONAR_HOST} \
                                 -Dsonar.login=${SONAR_TOKEN}
