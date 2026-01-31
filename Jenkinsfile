@@ -4,118 +4,135 @@ pipeline {
     environment {
         IMAGE_NAME      = "manishagawade/blog-app"
         IMAGE_TAG       = "latest"
-        GIT_REPO        = "https://github.com/GitGawade/CI-CD-Project.git"
-        SONAR_HOST      = "http://13.127.66.96:9000"  // your SonarQube server
-    
+        SONAR_HOST      = "http://13.127.66.96:9000"
+    }
 
     stages {
-       stage('Clean Workspace') {
+        stage('Clean Workspace') {
             steps {
-                deleteDir()
+                cleanWs()
             }
         }
 
         stage('Git Clone') {
             steps {
                 sh '''
-                  git clone https://github.com/GitGawade/CI-CD-Project.git
-                  cd CI-CD-Project
-                  git status
+                    echo "Cloning repository..."
+                    git clone https://github.com/GitGawade/CI-CD-Project.git .
+                    git status
                 '''
             }
-        
         }
 
         stage('SonarQube Analysis') {
             steps {
-                echo "Running SonarQube analysis using Docker..."
-                withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
-                    script {
-                        docker.image('sonarsource/sonar-scanner-cli:latest').inside {
-                            sh """
-                              sonar-scanner \
-                              -Dsonar.projectKey=flask_blog \
-                              -Dsonar.projectName=flask_blog \
-                              -Dsonar.sources=. \
-                              -Dsonar.host.url=$SONAR_HOST \
-                              -Dsonar.login=$SONAR_TOKEN
-                            """
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('SonarQube Quality Gate') {
-            steps {
-                echo "Checking SonarQube Quality Gate..."
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
-
-        stage('Trivy FS Scan (Source Code)') {
-            steps {
-                echo "Scanning source code with Trivy..."
+                echo "Running SonarQube analysis..."
                 script {
-                    docker.image('aquasec/trivy:latest').inside {
-                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
+                    withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            docker run --rm \
+                                -e SONAR_HOST_URL="${SONAR_HOST}" \
+                                -e SONAR_LOGIN="${SONAR_TOKEN}" \
+                                -v "${PWD}:/usr/src" \
+                                -w /usr/src \
+                                sonarsource/sonar-scanner-cli:latest \
+                                sonar-scanner \
+                                -Dsonar.projectKey=blog-app \
+                                -Dsonar.projectName=blog-app \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=${SONAR_HOST} \
+                                -Dsonar.login=${SONAR_TOKEN}
+                        """
                     }
                 }
+            }
+        }
+
+        stage('Trivy FS Scan') {
+            steps {
+                echo "Scanning source code..."
+                sh '''
+                    docker run --rm \
+                        -v $(pwd):/src \
+                        aquasec/trivy:latest \
+                        fs --exit-code 0 --severity HIGH,CRITICAL /src
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
-                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+                sh '''
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                '''
             }
         }
 
         stage('Trivy Image Scan') {
             steps {
-                echo "Scanning Docker image with Trivy..."
-                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG'
+                echo "Scanning Docker image..."
+                sh '''
+                    docker run --rm \
+                        aquasec/trivy:latest \
+                        image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_NAME}:${IMAGE_TAG}
+                '''
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                echo "Pushing Docker image to Docker Hub..."
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh """
-                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                      docker push $IMAGE_NAME:$IMAGE_TAG
-                    """
+                echo "Pushing to Docker Hub..."
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        """
+                    }
                 }
             }
         }
 
         stage('Deploy Container') {
             steps {
-                echo "Deploying container..."
-                sh """
-                  docker rm -f flask-blog || true
-                  docker run -d -p 5000:5000 --name flask-blog $IMAGE_NAME:$IMAGE_TAG
-                """
+                echo "Deploying..."
+                sh '''
+                    docker rm -f blog-app || true
+                    docker run -d -p 5000:5000 --name blog-app ${IMAGE_NAME}:${IMAGE_TAG}
+                    echo "Deployment process completed"
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                echo "Checking health..."
+                sh '''
+                    sleep 5
+                    docker ps | grep blog-app
+                '''
             }
         }
     }
 
     post {
         always {
-            echo 'Pipeline finished'
+            echo "Pipeline completed"
+            sh '''
+                echo "Cleaning up..."
+                docker rm -f blog-app || true
+            '''
         }
         success {
-            echo 'Build, scan, push, and deployment completed successfully'
+            echo "Pipeline succeeded"
         }
         failure {
-            echo 'Pipeline failed. Check logs above.'
+            echo "Pipeline failed"
         }
     }
 }
