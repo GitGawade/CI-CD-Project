@@ -14,13 +14,10 @@ pipeline {
             }
         }
 
-        stage('Git Clone') {
+        stage('Checkout') {
             steps {
-                sh '''
-                    echo "Cloning repository..."
-                    git clone https://github.com/GitGawade/CI-CD-Project.git .
-                    git status
-                '''
+                echo "Cloning repository..."
+                git branch: 'main', url: 'https://github.com/GitGawade/CI-CD-Project.git'
             }
         }
 
@@ -30,15 +27,15 @@ pipeline {
                 script {
                     withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
                         sh """
-                            docker run --rm \
+                            sudo docker run --rm \
                                 -e SONAR_HOST_URL="${SONAR_HOST}" \
                                 -e SONAR_LOGIN="${SONAR_TOKEN}" \
                                 -v "${PWD}:/usr/src" \
                                 -w /usr/src \
                                 sonarsource/sonar-scanner-cli:latest \
                                 sonar-scanner \
-                                -Dsonar.projectKey=blog-app \
-                                -Dsonar.projectName=blog-app \
+                                -Dsonar.projectKey=flask_blog \
+                                -Dsonar.projectName=flask_blog \
                                 -Dsonar.sources=. \
                                 -Dsonar.host.url=${SONAR_HOST} \
                                 -Dsonar.login=${SONAR_TOKEN}
@@ -51,32 +48,32 @@ pipeline {
         stage('Trivy FS Scan') {
             steps {
                 echo "Scanning source code..."
-                sh '''
-                    docker run --rm \
+                sh """
+                    sudo docker run --rm \
                         -v $(pwd):/src \
                         aquasec/trivy:latest \
                         fs --exit-code 0 --severity HIGH,CRITICAL /src
-                '''
+                """
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
-                sh '''
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                '''
+                sh """
+                    sudo docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                """
             }
         }
 
         stage('Trivy Image Scan') {
             steps {
                 echo "Scanning Docker image..."
-                sh '''
-                    docker run --rm \
+                sh """
+                    sudo docker run --rm \
                         aquasec/trivy:latest \
                         image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_NAME}:${IMAGE_TAG}
-                '''
+                """
             }
         }
 
@@ -90,8 +87,8 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )]) {
                         sh """
-                            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
-                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                            echo "${DOCKER_PASS}" | sudo docker login -u "${DOCKER_USER}" --password-stdin
+                            sudo docker push ${IMAGE_NAME}:${IMAGE_TAG}
                         """
                     }
                 }
@@ -101,21 +98,21 @@ pipeline {
         stage('Deploy Container') {
             steps {
                 echo "Deploying..."
-                sh '''
-                    docker rm -f blog-app || true
-                    docker run -d -p 5000:5000 --name blog-app ${IMAGE_NAME}:${IMAGE_TAG}
+                sh """
+                    sudo docker rm -f blog-app || true
+                    sudo docker run -d -p 5000:5000 --name blog-app ${IMAGE_NAME}:${IMAGE_TAG}
                     echo "Deployment process completed"
-                '''
+                """
             }
         }
 
         stage('Health Check') {
             steps {
                 echo "Checking health..."
-                sh '''
+                sh """
                     sleep 5
-                    docker ps | grep blog-app
-                '''
+                    sudo docker ps | grep blog-app
+                """
             }
         }
     }
@@ -123,10 +120,10 @@ pipeline {
     post {
         always {
             echo "Pipeline completed"
-            sh '''
+            sh """
                 echo "Cleaning up..."
-                docker rm -f blog-app || true
-            '''
+                sudo docker rm -f blog-app || true
+            """
         }
         success {
             echo "Pipeline succeeded"
