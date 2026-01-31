@@ -9,19 +9,21 @@ pipeline {
     
 
     stages {
-        stage('Debug Workspace') {
+       stage('Clean Workspace') {
             steps {
-        sh 'pwd'
-        sh 'ls -la'
-          }
-       }
-
-    
-        stage('Checkout') {
-            steps {
-                echo "Cloning repository..."
-                checkout scm
+                deleteDir()
             }
+        }
+
+        stage('Git Clone') {
+            steps {
+                sh '''
+                  git clone https://github.com/GitGawade/CI-CD-Project.git
+                  cd CI-CD-Project
+                  git status
+                '''
+            }
+        
         }
 
         stage('SonarQube Analysis') {
